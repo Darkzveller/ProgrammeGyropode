@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <MOTEUR.h>
+#include "ENCODEUR.h"
 #include "ALIMENTATION.h"
 // #include "BluetoothTache.h"
 
@@ -22,8 +23,8 @@ float thetaG, thetaGF;
 float thetaW, thetaWF;
 float theta, somme_non_filtrer;
 
-float Co=3.245;
-float Kd=0.0845;
+float Co = 3.245;
+float Kd = 0.0845;
 float ErreurPosAng;
 float cons;
 float consE = -0.0328;
@@ -33,12 +34,17 @@ float commandeComp = 0.1566;
 float vitesse;
 float Kalpha = 4095.0;
 int PWM;
-int valeur;
+float valeur;
 int etat = 0;
 
 int FlagCalcul = 0;
 float Te = 10;   // période d'échantillonage en ms Mettre 10ms
 float Tau = 175; // constante de temps du filtre en ms 1750ms
+
+float TauW=200;
+float Kw=21.6;
+float Kwd=2.64;
+float CONSv;
 // coefficient du filtre
 float A, B;
 
@@ -51,6 +57,8 @@ void controle(void *parameters)
   while (1)
   {
     santeAlim();
+    cons = CaclulVitesseAngulaireFiltre(Te, TauW, Kw, Kwd, CONSv);
+
     // Acquissition des toutes les mesures
     mpu.getEvent(&a, &g, &temp);
 
@@ -83,23 +91,17 @@ void controle(void *parameters)
       Controle_Moteur_Gauche(0);
     }
 
-    if (commande == 0)
-    {
-      Controle_Moteur_Droit(0);
-      Controle_Moteur_Gauche(0);
-    }
+   
     if (commandeTraiter < -0.45)
     {
       commandeTraiter = -0.45;
     }
-    else
-    {
-      if (commandeTraiter > 0.45)
+    else if (commandeTraiter > 0.45)
       {
         commandeTraiter = 0.45;
       }
       // Serial.printf("avance\n");
-    }
+    
 
     vitesse = 0.5 + commandeTraiter;
     PWM = vitesse * Kalpha;
@@ -117,10 +119,10 @@ void traitementBlutooth();
 void setup()
 {
   setAlim(2, 4, 27, 5, 36);
-
   Init_Pin_Moteur_Droit(19, 18);
   Init_Pin_Moteur_Gauche(16, 17);
   Config_Esp_Cannaux(19500, 12);
+  Init_Encondeur(33, 32, 26, 25);
 
   // Permet la communication avec le terminal concu par M.GUINAND ou celui du PC
   Serial.begin(115200);
@@ -214,6 +216,19 @@ void reception(char ch)
     {
       consE = valeur.toFloat();
     }
+    if (commande == "Kw")
+    {
+      Kw = valeur.toFloat();
+    }
+    if (commande == "Kwd")
+    {
+      Kwd = valeur.toFloat();
+    }
+
+    if (commande == "consVit")
+    {
+      CONSv = valeur.toFloat();
+    }
     chaine = "";
   }
   else
@@ -237,38 +252,38 @@ void traitementBlutooth()
 
     int caractere = SerialBT.read();
     // Serial.println(SerialBT.read());
-      if (caractere == 'D')
-      {
-        Serial.printf("Cesam OUVRE toi");
-        Serial.println();
-        openRelais();
-      }
-      if (caractere == 'd')
-      {
-        Serial.printf("Cesam FERME toi");
-        Serial.println();
-        closeRelais();
-      }
-      if (caractere == '1')
-      {
-        Serial.printf("Up\n");
-      }
-      if (caractere == '2')
-      {
-        Serial.printf("Droit\n");
-      }
-      if (caractere == '3')
-      {
-        Serial.printf("Bas\n");
-      }
-      if (caractere == '6')
-      {
-        Serial.printf("Gauche\n");
-      }
+    if (caractere == 'D')
+    {
+      Serial.printf("Cesam OUVRE toi");
+      Serial.println();
+      openRelais();
+    }
+    if (caractere == 'd')
+    {
+      Serial.printf("Cesam FERME toi");
+      Serial.println();
+      closeRelais();
+    }
+    if (caractere == '1')
+    {
+      Serial.printf("Up\n");
+    }
+    if (caractere == '2')
+    {
+      Serial.printf("Droit\n");
+    }
+    if (caractere == '3')
+    {
+      Serial.printf("Bas\n");
+    }
+    if (caractere == '6')
+    {
+      Serial.printf("Gauche\n");
+    }
     switch (etat)
     {
     case 0:
-      if (caractere == 'A') // Est ce que j'ai recu l'information
+      if (caractere == 'V') // Est ce que j'ai recu l'information
       {
 
         etat = 1;
@@ -281,9 +296,11 @@ void traitementBlutooth()
       {
         valeur = valeur * 10 + caractere - '0';
       }
-      else if (caractere == 'Z')
+      else if (caractere == 'v')
       {
         Serial.printf("\nValeur %d\n", valeur);
+
+        CONSv = valeur/100.0 * (0.0083+0.02) - 0.0083;
 
         etat = 0;
       }
