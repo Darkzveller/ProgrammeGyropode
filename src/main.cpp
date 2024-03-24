@@ -319,13 +319,7 @@ void traitementBlutooth()
     if (caractere == '1')
     {
       Serial.printf("Up\n");
-      CONSv = 0.0083;
-    }
-    else
-    {
-      Serial.printf("Arret Vit\n");
-
-      CONSv = 0;
+      CONSv = 0.006;
     }
     if (caractere == '2')
     {
@@ -336,15 +330,15 @@ void traitementBlutooth()
       Serial.printf("Bas\n");
       CONSv = -0.0083;
     }
-    else
+    if (caractere == '4')
+    {
+      Serial.printf("Gauche\n");
+    }
+    if (caractere == '5')
     {
       Serial.printf("Arret Vit\n");
 
       CONSv = 0;
-    }
-    if (caractere == '6')
-    {
-      Serial.printf("Gauche\n");
     }
     switch (etat)
     {
