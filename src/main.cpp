@@ -39,6 +39,7 @@ float valeur;
 int etat = 0;
 
 bool FlagCalcul = 0;
+int asseractif = 0;
 float Te = 5;    // période d'échantillonage en ms Mettre 10ms
 float Tau = 175; // constante de temps du filtre en ms 1750ms
 
@@ -59,75 +60,85 @@ void controle(void *parameters)
 
   while (1)
   {
-
-    santeAlim(0, 0);
-    if (y == 0)
+    if (asseractif == 1)
     {
-      if (millis() >= Echantillon_ms_precedent + Intervalle_T)
+      santeAlim(0, 0);
+      /* if (y == 0)
+       {
+         if (millis() >= Echantillon_ms_precedent + Intervalle_T)
+         {
+
+           Echantillon_ms_precedent = millis();
+           if (x == 1)
+           {
+             x = 3;
+             Co = Coprec;
+             y = 5;
+           }
+           if (x == 0)
+           {
+             x = 1;
+             Co = 0;
+             Intervalle_T = 800;
+           }
+         }
+       }*/
+      cons = CaclulVitesseAngulaireFiltre(Te, TauW, Kw, Kwd, CONSv);
+
+      // Acquissition des toutes les mesures
+      mpu.getEvent(&a, &g, &temp);
+
+      // Calcul de théta a l'aide de l'accélération mesurer
+      thetaG = (-1) * atan2(a.acceleration.y, a.acceleration.x); // Permet de calculer l'angle Théta G avec un angle dans la valeur est entier relatif
+      // Calcul du Théta filtrer
+      thetaGF = A * thetaG + B * thetaGF;
+
+      // Calcul de théta a l'aide de la valeur mesurer par le gyroscope
+      thetaW = g.gyro.z * Tau * 1e-3;
+      // Calcul du thétaW filtrer
+      thetaWF = A * thetaW + B * thetaWF;
+
+      // Calcule de la somme permettant d'avoir un passe bande filtrer
+      theta = thetaGF + thetaWF;
+
+      ErreurPosAng = (cons + consE) - theta;
+      commande = ErreurPosAng * Co + Kd * (-1) * g.gyro.z;
+      if (commande < 0)
       {
-
-        Echantillon_ms_precedent = millis();
-        if (x == 1)
-        {
-          x = 3;
-          Co = Coprec;
-          y = 5;
-        }
-        if (x == 0)
-        {
-          x = 1;
-          Co = 0;
-          Intervalle_T = 800;
-        }
+        commandeTraiter = commande - commandeComp;
       }
+      if (commande > 0)
+      {
+        commandeTraiter = commande + commandeComp;
+      }
+      if (commandeTraiter > 0.45)
+      {
+        commandeTraiter = 0.45;
+      }
+      else if (commandeTraiter < -0.45)
+      {
+        commandeTraiter = -0.45;
+      }
+
+      // Serial.printf("avance\n");
+
+      vitesse = 0.5 + commandeTraiter;
+      PWM = vitesse * Kalpha;
+      Controle_Moteur_Droit(PWM);
+      Controle_Moteur_Gauche(PWM);
     }
-    cons = CaclulVitesseAngulaireFiltre(Te, TauW, Kw, Kwd, CONSv);
-
-    // Acquissition des toutes les mesures
-    mpu.getEvent(&a, &g, &temp);
-
-    // Calcul de théta a l'aide de l'accélération mesurer
-    thetaG = (-1) * atan2(a.acceleration.y, a.acceleration.x); // Permet de calculer l'angle Théta G avec un angle dans la valeur est entier relatif
-    // Calcul du Théta filtrer
-    thetaGF = A * thetaG + B * thetaGF;
-
-    // Calcul de théta a l'aide de la valeur mesurer par le gyroscope
-    thetaW = g.gyro.z * Tau * 1e-3;
-    // Calcul du thétaW filtrer
-    thetaWF = A * thetaW + B * thetaWF;
-
-    // Calcule de la somme permettant d'avoir un passe bande filtrer
-    theta = thetaGF + thetaWF;
-
-    ErreurPosAng = (cons + consE) - theta;
-    commande = ErreurPosAng * Co + Kd * (-1) * g.gyro.z;
-    if (commande < 0)
+    if (asseractif == 0)
     {
-      commandeTraiter = commande - commandeComp;
+      vitesse = 0.5;
+      PWM = vitesse * Kalpha;
+      Controle_Moteur_Droit(PWM);
+      Controle_Moteur_Gauche(PWM);
     }
-    if (commande > 0)
-    {
-      commandeTraiter = commande + commandeComp;
-    }
-    if (commandeTraiter > 0.45)
-    {
-      commandeTraiter = 0.45;
-    }
-    else if (commandeTraiter < -0.45)
-    {
-      commandeTraiter = -0.45;
-    }
-
-    // Serial.printf("avance\n");
-
-    vitesse = 0.5 + commandeTraiter;
-    PWM = vitesse * Kalpha;
-    Controle_Moteur_Droit(PWM);
-    Controle_Moteur_Gauche(PWM);
     // Mise a 1 du flag permettant ainsi dans le void loop de pouvoir effectuer l'affichage
     FlagCalcul = 1;
-    // Demander a M.CLAMAINS toute information complémentaire sur la ligne suivante
     vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(Te));
+
+    // Demander a M.CLAMAINS toute information complémentaire sur la ligne suivante
   }
 }
 void traitementBlutooth();
@@ -278,15 +289,26 @@ void traitementBlutooth()
 
     int caractere = SerialBT.read();
     // Serial.println(SerialBT.read());
+    if (caractere == 'C')
+    {
+      asseractif = 1;
+      // Serial.printf("actif\n");
+      // Serial.println(asseractif);
+    }
+    if (caractere == 'c')
+    {
+      asseractif = 0;
+      // Serial.printf("non actif\n");
+      // Serial.println(asseractif);
+    }
 
     if (caractere == 'D')
     {
       // santeAlim(0, 0);
-
       Serial.printf("Cesam OUVRE toi");
       Serial.println();
       openRelais();
-      delay(1000);
+      // delay(1000);
     }
     if (caractere == 'd')
     {
@@ -297,6 +319,13 @@ void traitementBlutooth()
     if (caractere == '1')
     {
       Serial.printf("Up\n");
+      CONSv = 0.0083;
+    }
+    else
+    {
+      Serial.printf("Arret Vit\n");
+
+      CONSv = 0;
     }
     if (caractere == '2')
     {
@@ -305,6 +334,13 @@ void traitementBlutooth()
     if (caractere == '3')
     {
       Serial.printf("Bas\n");
+      CONSv = -0.0083;
+    }
+    else
+    {
+      Serial.printf("Arret Vit\n");
+
+      CONSv = 0;
     }
     if (caractere == '6')
     {
@@ -328,9 +364,10 @@ void traitementBlutooth()
       }
       else if (caractere == 'v')
       {
-        Serial.printf("\nValeur %d\n", valeur);
+        // Serial.printf("\nValeur %d\n", valeur);
 
-        CONSv = valeur / 100.0 * (0.0083 + 0.02) - 0.0083;
+        // CONSv = valeur / 100.0 * (0.0083 +0.0083) - 0.0083;
+        Serial.printf("\nValeur %4.4f\n", CONSv);
 
         etat = 0;
       }
