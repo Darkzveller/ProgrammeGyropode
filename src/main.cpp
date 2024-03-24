@@ -24,6 +24,7 @@ float thetaW, thetaWF;
 float theta, somme_non_filtrer;
 
 float Co = 3.245;
+float Coprec = Co;
 float Kd = 0.0845;
 float ErreurPosAng;
 float cons;
@@ -37,17 +38,19 @@ int PWM;
 float valeur;
 int etat = 0;
 
-int FlagCalcul = 0;
-float Te = 10;   // période d'échantillonage en ms Mettre 10ms
+bool FlagCalcul = 0;
+float Te = 5;    // période d'échantillonage en ms Mettre 10ms
 float Tau = 175; // constante de temps du filtre en ms 1750ms
 
-float TauW=200;
-float Kw=21.6;
-float Kwd=2.64;
+float TauW = 100;
+float Kw = 21.6;
+float Kwd = 2.64;
 float CONSv;
 // coefficient du filtre
 float A, B;
-
+int x = 0, y = 0;
+unsigned long Intervalle_T = 200;
+unsigned long Echantillon_ms_precedent = 0;
 void controle(void *parameters)
 {
   // Demander a M.CLAMAINS toute information complémentaire sur la ligne suivante
@@ -56,7 +59,28 @@ void controle(void *parameters)
 
   while (1)
   {
-    santeAlim();
+
+    santeAlim(0, 0);
+    if (y == 0)
+    {
+      if (millis() >= Echantillon_ms_precedent + Intervalle_T)
+      {
+
+        Echantillon_ms_precedent = millis();
+        if (x == 1)
+        {
+          x = 3;
+          Co = Coprec;
+          y = 5;
+        }
+        if (x == 0)
+        {
+          x = 1;
+          Co = 0;
+          Intervalle_T = 800;
+        }
+      }
+    }
     cons = CaclulVitesseAngulaireFiltre(Te, TauW, Kw, Kwd, CONSv);
 
     // Acquissition des toutes les mesures
@@ -85,27 +109,19 @@ void controle(void *parameters)
     {
       commandeTraiter = commande + commandeComp;
     }
-    if (commande == 0)
+    if (commandeTraiter > 0.45)
     {
-      Controle_Moteur_Droit(0);
-      Controle_Moteur_Gauche(0);
+      commandeTraiter = 0.45;
     }
-
-   
-    if (commandeTraiter < -0.45)
+    else if (commandeTraiter < -0.45)
     {
       commandeTraiter = -0.45;
     }
-    else if (commandeTraiter > 0.45)
-      {
-        commandeTraiter = 0.45;
-      }
-      // Serial.printf("avance\n");
-    
+
+    // Serial.printf("avance\n");
 
     vitesse = 0.5 + commandeTraiter;
     PWM = vitesse * Kalpha;
-
     Controle_Moteur_Droit(PWM);
     Controle_Moteur_Gauche(PWM);
     // Mise a 1 du flag permettant ainsi dans le void loop de pouvoir effectuer l'affichage
@@ -118,14 +134,23 @@ void traitementBlutooth();
 
 void setup()
 {
+  Serial.begin(115200);
+
   setAlim(2, 4, 27, 5, 36);
   Init_Pin_Moteur_Droit(19, 18);
   Init_Pin_Moteur_Gauche(16, 17);
+  Serial.printf("Init Pin Moteur\n");
+  delay(250);
+
   Config_Esp_Cannaux(19500, 12);
+  Serial.printf("Init Canaux Moteur\n");
+  delay(250);
+
   Init_Encondeur(33, 32, 26, 25);
+  Serial.printf("Init   Encodeur\n");
+  delay(250);
 
   // Permet la communication avec le terminal concu par M.GUINAND ou celui du PC
-  Serial.begin(115200);
   // Test la communication avec le MPU 6050
   if (!mpu.begin())
   {
@@ -147,13 +172,14 @@ void setup()
       NULL        // descripteur
   );
 
-  delay(2000);
+  delay(250);
   // setBlutTache();
   SerialBT.begin("JSP NAME");
 
   // calcul coeff filtre
   A = 1 / (1 + Tau / Te);
   B = Tau / Te * A;
+  Serial.printf("Finish");
 }
 
 void loop()
@@ -252,11 +278,15 @@ void traitementBlutooth()
 
     int caractere = SerialBT.read();
     // Serial.println(SerialBT.read());
+
     if (caractere == 'D')
     {
+      // santeAlim(0, 0);
+
       Serial.printf("Cesam OUVRE toi");
       Serial.println();
       openRelais();
+      delay(1000);
     }
     if (caractere == 'd')
     {
@@ -300,7 +330,7 @@ void traitementBlutooth()
       {
         Serial.printf("\nValeur %d\n", valeur);
 
-        CONSv = valeur/100.0 * (0.0083+0.02) - 0.0083;
+        CONSv = valeur / 100.0 * (0.0083 + 0.02) - 0.0083;
 
         etat = 0;
       }

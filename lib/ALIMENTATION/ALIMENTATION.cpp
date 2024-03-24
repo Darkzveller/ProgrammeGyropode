@@ -3,9 +3,8 @@
 
 float pinControleTransistor = 27, pinTension = 36, tension, tensionSeuil = 6.0, MaxVoltage = 8.2;
 float pinLedRouge = 2, pinLedVert = 4;
-// IHM
-int BPR = 5, valBPR = 0;
 
+int BPR = 5, valBPR = 0;
 void setAlim(int x, int y, int z, int w, int p)
 {
     Serial.printf("INIT PIN ALIM");
@@ -36,6 +35,7 @@ void openRelais()
     digitalWrite(pinControleTransistor, HIGH);
     digitalWrite(pinLedRouge, LOW);
     digitalWrite(pinLedVert, HIGH);
+    
 }
 void closeRelais()
 {
@@ -48,8 +48,10 @@ void lectureTension(int x)
     tension = analogReadMilliVolts(pinTension) * 10.0 / 3.2 / 1000.0;
     if (x)
     {
-        Serial.printf("%4.4f\n", tension);
+        Serial.printf("%4.2f\n", tension);
+        delay(500);
     }
+
     // tension = tension  / 3.6 + 0;
     // if (tension < 9)
     // {
@@ -63,17 +65,27 @@ void lectureTension(int x)
     // Serial.printf("%4.4f\n", tension);
     // delay(1000);
 }
-void santeAlim()
+void santeAlim(int readBat, int etatBat)
 {
-    lectureTension(0);
-    valBPR = digitalRead(BPR);
-    // Serial.println(valBPR);
-    if (valBPR == 0)
+    switch (etatBat)
     {
-        closeRelais();
-    }
-    if (tension < tensionSeuil)
-    {
-        closeRelais();
+    case 0:
+        /* code */
+        break;
+    case 1:
+        lectureTension(readBat);
+        valBPR = digitalRead(BPR);
+        // Serial.println(valBPR);
+        if (valBPR == 0)
+        {
+            closeRelais();
+        }
+        if (tension < tensionSeuil)
+        {
+            closeRelais();
+        }
+        break;
+    default:
+        break;
     }
 }

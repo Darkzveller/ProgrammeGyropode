@@ -5,6 +5,6 @@ void setAlim(int x, int y, int z, int w, int p);
 void openRelais();
 void closeRelais();
 void lectureTension(int x);
-void santeAlim();
+void santeAlim(int readBat, int etatBat);
 
 #endif
