@@ -1,13 +1,18 @@
 #include <Arduino.h>
+#include <MOTEUR.h>
+#include "ALIMENTATION.h"
+// #include "BluetoothTache.h"
+
+#include <BluetoothSerial.h>
 #include <String.h>
 #include <Wire.h>
+
 // Bibliotheque MPU 6050
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_SSD1306.h>
 #include <Adafruit_Sensor.h>
 
-#include <MOTEUR.h>
-#include "ALIMENTATION.h"
+BluetoothSerial SerialBT;
 
 // Declaration de class
 Adafruit_MPU6050 mpu;
@@ -17,20 +22,22 @@ float thetaG, thetaGF;
 float thetaW, thetaWF;
 float theta, somme_non_filtrer;
 
-float Co;
-float Kd;
+float Co=3.245;
+float Kd=0.0845;
 float ErreurPosAng;
 float cons;
-float consE=-0.0328;
+float consE = -0.0328;
 float commande;
 float commandeTraiter;
 float commandeComp = 0.1566;
 float vitesse;
 float Kalpha = 4095.0;
 int PWM;
+int valeur;
+int etat = 0;
 
-char FlagCalcul = 0;
-float Te = 10;  // période d'échantillonage en ms Mettre 10ms
+int FlagCalcul = 0;
+float Te = 10;   // période d'échantillonage en ms Mettre 10ms
 float Tau = 175; // constante de temps du filtre en ms 1750ms
 // coefficient du filtre
 float A, B;
@@ -61,7 +68,7 @@ void controle(void *parameters)
     theta = thetaGF + thetaWF;
 
     ErreurPosAng = (cons + consE) - theta;
-    commande = ErreurPosAng * Co + Kd *(-1) *g.gyro.z;
+    commande = ErreurPosAng * Co + Kd * (-1) * g.gyro.z;
     if (commande < 0)
     {
       commandeTraiter = commande - commandeComp;
@@ -105,6 +112,7 @@ void controle(void *parameters)
     vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(Te));
   }
 }
+void traitementBlutooth();
 
 void setup()
 {
@@ -133,9 +141,13 @@ void setup()
       "controle", // nom de la tache que nous venons de vréer
       10000,      // taille de la pile en octet
       NULL,       // parametre
-      1,         // tres haut niveau de priorite
+      1,          // tres haut niveau de priorite
       NULL        // descripteur
   );
+
+  delay(2000);
+  // setBlutTache();
+  SerialBT.begin("JSP NAME");
 
   // calcul coeff filtre
   A = 1 / (1 + Tau / Te);
@@ -146,8 +158,10 @@ void loop()
 {
   if (FlagCalcul == 1) // Affichage des données
   {
+    traitementBlutooth();
+
     // On affiche sur le terminal les informations souhaité
-    Serial.printf("%4.4f %4.4f %4.4f %4.4f \n", theta, commande, vitesse);
+    // Serial.printf("%4.4f %4.4f %4.4f %4.4f \n", theta, commande, vitesse);
     // Mise a 0 du flag
     FlagCalcul = 0;
   }
@@ -196,7 +210,7 @@ void reception(char ch)
     {
       Kd = valeur.toFloat();
     }
-if (commande == "consE")
+    if (commande == "consE")
     {
       consE = valeur.toFloat();
     }
@@ -216,3 +230,70 @@ void serialEvent()
   }
 }
 // Serial.printf("%4.2f %4.2f %4.2f %4.2f \n", thetaGF,thetaG, thetaWF, somme_filtrer);
+void traitementBlutooth()
+{
+  if (SerialBT.available())
+  {
+
+    int caractere = SerialBT.read();
+    // Serial.println(SerialBT.read());
+      if (caractere == 'D')
+      {
+        Serial.printf("Cesam OUVRE toi");
+        Serial.println();
+        openRelais();
+      }
+      if (caractere == 'd')
+      {
+        Serial.printf("Cesam FERME toi");
+        Serial.println();
+        closeRelais();
+      }
+      if (caractere == '1')
+      {
+        Serial.printf("Up\n");
+      }
+      if (caractere == '2')
+      {
+        Serial.printf("Droit\n");
+      }
+      if (caractere == '3')
+      {
+        Serial.printf("Bas\n");
+      }
+      if (caractere == '6')
+      {
+        Serial.printf("Gauche\n");
+      }
+    switch (etat)
+    {
+    case 0:
+      if (caractere == 'A') // Est ce que j'ai recu l'information
+      {
+
+        etat = 1;
+        valeur = 0;
+      }
+
+      break;
+    case 1: //
+      if ((caractere >= '0') && (caractere <= '9'))
+      {
+        valeur = valeur * 10 + caractere - '0';
+      }
+      else if (caractere == 'Z')
+      {
+        Serial.printf("\nValeur %d\n", valeur);
+
+        etat = 0;
+      }
+      else
+      {
+        Serial.printf("Message non compris\n");
+
+        etat = 0;
+      }
+      break;
+    }
+  }
+}
