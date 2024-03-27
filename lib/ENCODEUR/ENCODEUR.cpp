@@ -2,6 +2,7 @@
 #include <Arduino.h>
 #include <ESP32Encoder.h>
 #include <math.h>
+#include "MOTEUR.h"
 
 ESP32Encoder encoderGauche;
 ESP32Encoder encoderDroit;
@@ -40,9 +41,9 @@ float lecture_Encodeur_Droit(void)
   // Je convertir mon nombre de tour en distance parcourue
   // distancedroit = distancedroit * perimetre;
   // Conversion en radians
-  distancedroit = 2.0 * M_PI * distancedroit / 1.0;
+  thetaEncodeurDroit = 2.0 * M_PI * distancedroit / 1.0;
 
-  return distancedroit;
+  return thetaEncodeurDroit;
 }
 
 float lecture_Encodeur_Gauche(void)
@@ -54,17 +55,17 @@ float lecture_Encodeur_Gauche(void)
   // Je convertir mon nombre de tour en distance parcourue
   // distancegauche = distancegauche * perimetre;
   // Conversion en radians
-  distancegauche = 2.0 * M_PI * distancegauche / 1.0;
+  thetaEncodeurGauche = 2.0 * M_PI * distancegauche / 1.0;
 
-  return distancegauche;
+  return thetaEncodeurGauche;
 }
 
 float CaclulVitesseAngulaireFiltre(float Te, float Tau, float Kw, float Kdw, float CONSv)
 {
-  vitesseAngulaireCONS=CONSv;
+  vitesseAngulaireCONS = CONSv;
   thetaEncodeur = (lecture_Encodeur_Droit() + lecture_Encodeur_Gauche()) / 2.0;
   // Serial.printf("%4.4f %4.4f %4.4f\n", thetaEncodeur, lecture_Encodeur_Droit(), lecture_Encodeur_Gauche());
-// Deriver de l'angle pour obtenir l'accélaration angulaire
+  // Deriver de l'angle pour obtenir l'accélaration angulaire
   vitesseAngulaire = (thetaEncodeur - thetaEncodeurPrec) / Te;
   // Serial.printf("%4.4f \n", vitesseAngulaire);
   thetaEncodeurPrec = thetaEncodeur;
@@ -74,50 +75,51 @@ float CaclulVitesseAngulaireFiltre(float Te, float Tau, float Kw, float Kdw, flo
   // Serial.printf("%4.4f %4.4f\n", vitesseAngulaire, vitesseAngulaireFiltre);
 
   ErreurVitAng = vitesseAngulaireCONS - vitesseAngulaireFiltre;
-  
+
   // Serial.printf("%4.4f \n",ErreurVitAng);
-  
 
-  commandeVit = -1.0 * ErreurVitAng * Kw + -1.0  * Kdw * (ErreurVitAng - ErreurVitAngPrec) / Te;
-
+  commandeVit = -1.0 * ErreurVitAng * Kw + -1.0 * Kdw * (ErreurVitAng - ErreurVitAngPrec) / Te;
 
   // Serial.printf("%4.4f %4.4f %4.4f %4.4f \n", testval, brancheK, brancheKd,Kdw);
   ErreurVitAngPrec = ErreurVitAng;
-/**/
+  /**/
   return commandeVit;
 }
+/*
+void asservissementEncodeur(float PWM)
+{
+  int x = lecture_Encodeur_Droit();
+  x = lecture_Encodeur_Gauche();
 
-// void asservissementEncodeur(float PWM)
-// {
-//   extern int canal_moteur_droit, canal_moteur_droit_bis;
-//   extern int canal_moteur_gauche, canal_moteur_gauche_bis;
-//   position = lecture_Encodeur_Droit() - lecture_Encodeur_Gauche();
-//   float commande;
+  position = distancegauche - distancegauche;
+  float commande;
 
-//   commande = 1 * position + 1 * (position - positionAncienne);
-//   positionAncienne = position;
+  commande = 6.0 * position + .0 * (position - positionAncienne);
+  positionAncienne = position;
 
-//   if (commande > 0)
-//   {
-//     if (commande > PWM)
-//     {
-//       commande = PWM;
-//     }
-//     // MotDroit((PWM - commande));
-//     // MotGauche((PWM));
-//     Controle_Moteur_Droit(PWM);
-//     Controle_Moteur_Gauche((PWM - commande));
-//   }
-//   else
-//   {
-//     if (commande < -PWM)
-//     {
-//       commande = -PWM;
-//     }
-//     Controle_Moteur_Gauche(PWM);
-//     Controle_Moteur_Droit((PWM - commande));
-//     // MotDroit((PWM));
-//     // MotGauche((PWM - commande));
-//   }
-//   // Serial.printf("OK");
-// }
+  if (commande > 0)
+  {
+    if (commande > PWM)
+    {
+      commande = PWM;
+    }
+    // MotDroit((PWM - commande));
+    // MotGauche((PWM));
+    Controle_Moteur_Droit(PWM);
+    Controle_Moteur_Gauche((PWM - commande));
+  }
+  else
+  {
+    if (commande < -PWM)
+    {
+      commande = -PWM;
+    }
+    Controle_Moteur_Gauche(PWM);
+    Controle_Moteur_Droit((PWM - commande));
+
+    // MotDroit((PWM));
+    // MotGauche((PWM - commande));
+  }
+  // Serial.printf("OK");
+}
+*/

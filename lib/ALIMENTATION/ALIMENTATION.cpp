@@ -35,7 +35,8 @@ void openRelais()
     digitalWrite(pinControleTransistor, HIGH);
     digitalWrite(pinLedRouge, LOW);
     digitalWrite(pinLedVert, HIGH);
-    
+    lectureTension(0);
+    delay(100);
 }
 void closeRelais()
 {
@@ -73,13 +74,17 @@ void santeAlim(int readBat, int etatBat)
         /* code */
         break;
     case 1:
-        lectureTension(readBat);
         valBPR = digitalRead(BPR);
         // Serial.println(valBPR);
         if (valBPR == 0)
         {
             closeRelais();
         }
+
+        break;
+    case 2:
+        lectureTension(readBat);
+
         if (tension < tensionSeuil)
         {
             closeRelais();

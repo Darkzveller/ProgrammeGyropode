@@ -38,6 +38,7 @@ int PWM;
 float valeur;
 int etat = 0;
 
+extern float tension;
 bool FlagCalcul = 0;
 int asseractif = 0;
 float Te = 5;    // période d'échantillonage en ms Mettre 10ms
@@ -47,14 +48,18 @@ float TauW = 100;
 float Kw = 21.6;
 float Kwd = 2.64;
 float CONSv;
-float CONSvMax = 0.007;
+float CONSvMax = 0.006;
+float CONSvMIN = -1.0 * CONSvMax;
 float CONSvPAS = CONSvMax / 100.0;
 int direction;
 float gauchedroit;
+float consGaucheDroit;
+float consGaucheDroitMAX = 0.2;
+float consGaucheDroitPAS = consGaucheDroitMAX / 10.0;
 // coefficient du filtre
 float A, B;
 int x = 0, y = 0;
-unsigned long Intervalle_T = 200;
+unsigned long Intervalle_T = 50000;
 unsigned long Echantillon_ms_precedent = 0;
 void controle(void *parameters)
 {
@@ -64,7 +69,7 @@ void controle(void *parameters)
 
   while (1)
   {
-
+    santeAlim(0, 1);
     if (asseractif == 1)
     {
       /* if (y == 0)
@@ -87,6 +92,7 @@ void controle(void *parameters)
            }
          }
        }*/
+
       cons = CaclulVitesseAngulaireFiltre(Te, TauW, Kw, Kwd, CONSv);
 
       // Acquissition des toutes les mesures
@@ -204,8 +210,15 @@ void loop()
   {
     traitementBlutooth();
     rampe();
-    santeAlim(0, 1);
+    /**/
+    if (millis() >= Echantillon_ms_precedent + Intervalle_T)
+    {
 
+      Echantillon_ms_precedent = millis();
+      santeAlim(0, 2);
+      SerialBT.printf("*G%2.1f", (tension * 10.0));
+      // Serial.printf("*G%2.1f\n", (tension * 10.0));
+    }
     // On affiche sur le terminal les informations souhaité
     // Serial.printf("%4.4f %4.4f %4.4f %4.4f \n", theta, commande, vitesse);
     // Mise a 0 du flag
@@ -259,6 +272,7 @@ void reception(char ch)
     if (commande == "consE")
     {
       consE = valeur.toFloat();
+      // Serial.println(consE);
     }
     if (commande == "Kw")
     {
@@ -288,7 +302,7 @@ void serialEvent()
     reception(Serial.read());
   }
 }
-// Serial.printf("%4.2f %4.2f %4.2f %4.2f \n", thetaGF,thetaG, thetaWF, somme_filtrer);
+
 void traitementBlutooth()
 {
   int mouvement = 0;
@@ -362,14 +376,14 @@ void traitementBlutooth()
     {
       // santeAlim(0, 0);
       // Serial.printf("Cesam OUVRE toi");
-      Serial.println();
+      // Serial.println();
       openRelais();
       // delay(1000);
     }
     if (caractere == 'd')
     {
       // Serial.printf("Cesam FERME toi");
-      Serial.println();
+      // Serial.println();
       closeRelais();
     }
 
@@ -382,73 +396,65 @@ void traitementBlutooth()
     case '1':
       // CONSv = 0.005;
       direction = 1;
-      Serial.printf("UP\n");
+      // Serial.printf("UP\n");
 
       break;
     case '2':
-      Serial.printf("Droit\n");
+      // Serial.printf("Droit\n");
       direction = 2;
       break;
     case '3':
       direction = 3;
-      Serial.printf("DOWN\n\n");
+      // Serial.printf("DOWN\n\n");
       // CONSv = -0.0083;
       break;
 
     case '4':
       direction = 4;
-      Serial.printf("Gauche\n");
+      // Serial.printf("Gauche\n");
 
       break;
 
     default:
       break;
     }
-    // if (caractere == '1')
-    // {
-    //   Serial.printf("Up\n");
-    //   CONSv = 0.006;
-    // }
+    /*
+        switch (etat)
+        {
+        case 0:
+          if (caractere == 'T') // Est ce que j'ai recu l'information
+          {
 
-    // if (caractere == '5')
-    // {
-    //   Serial.printf("Arret Vit\n");
+            etat = 1;
+            valeur = 0;
+          }
 
-    //   CONSv = 0;
-    // }
-    switch (etat)
-    {
-    case 0:
-      if (caractere == 'V') // Est ce que j'ai recu l'information
-      {
+          break;
+        case 1: //
+          if ((caractere >= '0') && (caractere <= '9'))
+          {
+            valeur = valeur * 10 + caractere - '0';
+          }
+          else if (caractere == 't')
+          {
+            consE = (-1.0)*valeur /10000.0;
+            SerialBT.printf("*w %f",consE);
 
-        etat = 1;
-        valeur = 0;
-      }
+            // Serial.printf("\nValeur %d\n", valeur);
 
-      break;
-    case 1: //
-      if ((caractere >= '0') && (caractere <= '9'))
-      {
-        valeur = valeur * 10 + caractere - '0';
-      }
-      else if (caractere == 'v')
-      {
-        // Serial.printf("\nValeur %d\n", valeur);
+            // CONSv = valeur / 100.0 * (0.0083 +0.0083) - 0.0083;
+            // Serial.printf("\nValeur %4.4f\n", CONSv);
 
-        // CONSv = valeur / 100.0 * (0.0083 +0.0083) - 0.0083;
-        // Serial.printf("\nValeur %4.4f\n", CONSv);
+            etat = 0;
+          }
+          else
+          {
+            Serial.printf("Message non compris\n");
 
-        etat = 0;
-      }
-      else
-      {
-        Serial.printf("Message non compris\n");
-
-        etat = 0;
-      }
-      break;
-    }
+            etat = 0;
+          }
+          break;
+        }*/
   }
 }
 
@@ -461,29 +467,39 @@ void rampe()
   }
   if (direction == 1)
   {
-    if (CONSv < CONSvMax)
+    if (CONSv <= CONSvMax)
     {
       // Serial.printf("++++\n");
       CONSv += CONSvPAS;
     }
-  }
-  if (direction == 2)
-  {
-    // Serial.printf("Tour DROIT\n");
-    gauchedroit = -0.2;
+    // asservissementEncodeur(PWM);
   }
   if (direction == 3)
   {
-    if (CONSv > ((-1.0) * CONSvMax))
+    if (CONSv >= CONSvMIN)
     {
       // Serial.printf("----\n");
       CONSv -= CONSvPAS;
     }
+    // asservissementEncodeur(PWM);
+  }
+  if (direction == 2)
+  {
+    // Serial.printf("Tour DROIT\n");
+    /* if (consGaucheDroit > ((-1.0) * consGaucheDroitMAX))
+        {
+          consGaucheDroit -= consGaucheDroitPAS;
+        }*/
+    gauchedroit = -0.15;
   }
 
   if (direction == 4)
   {
     // Serial.printf("Tour GAUCHE\n");
-    gauchedroit = 0.2;
+    /* if (consGaucheDroit < consGaucheDroitMAX)
+     {
+       consGaucheDroit += consGaucheDroitPAS;
+     }*/
+    gauchedroit = 0.15;
   }
 }
